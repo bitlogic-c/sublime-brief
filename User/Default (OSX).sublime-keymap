@@ -1,0 +1,9 @@
+[
+{ "keys": ["super+ctrl+l"], "command": "example", "args" :{"key" : "down"} },
+
+{ "keys": ["down"], "command": "example", "args" : { "key" : "down" }  },
+{ "keys": ["up"], "command": "example", "args" : { "key" : "up" }  },
+{ "keys": ["right"], "command": "example", "args" : { "key" : "right" }  },
+{ "keys": ["left"], "command": "example", "args" : { "key" : "left" }  },
+
+]
