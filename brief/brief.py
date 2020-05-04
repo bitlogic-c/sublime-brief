@@ -1,5 +1,6 @@
 import sublime
 import sublime_plugin
+from sublime import Region
 import datetime
 import logging
 import sys
@@ -8,7 +9,7 @@ import functools
 logger = logging.getLogger( __name__ )
 logger.setLevel( logging.INFO )
 
-logging.basicConfig( stream=logging.StreamHandler(sys.stdout) )
+logging.basicConfig( stream=sys.stdout)
 
 
 MODE = ['column','line','block','off']
@@ -20,6 +21,7 @@ class ExampleCommand(sublime_plugin.TextCommand):
         super().__init__(*args, **kwargs )
         self.selection_mode = "off"
         self.curr_point = None
+        print( sys.version )
 
     def _move(self, edit, key ):
         line_move = dict( up = -1, down = 1 )
@@ -45,6 +47,7 @@ class ExampleCommand(sublime_plugin.TextCommand):
             line.a = line.b = point
         
         selection.add( line )   
+        self.view.show(line, False)
         # selection.add( sublime.Region( 0, 5) )   
 
     def run(self, edit, key ):
@@ -100,28 +103,31 @@ class ExampleCommand(sublime_plugin.TextCommand):
                     else:
                         region.b = line.b
                     selection.add( region )
-            elif self.selection_mode == 'column':
-                selection = self.view.sel()
-                top_left = selection[0].a
-                bottom_right = selection[-1].b
-                
-                lx,ly = self.view.rowcol(top_left)
-                rx,ry = self.view.rowcol(bottom_right)
 
+            elif self.selection_mode == 'column': 
+                dx = self.view.em_width()
+                dy = self.view.line_height()
+
+                selection = self.view.sel()
+                top_left = selection[0].begin()
+                bottom_right = selection[-1].end()
                 lines = self.view.lines( sublime.Region(top_left,bottom_right))
                 if key == 'right':
-                    ry += 1
-
-                    selection.clear()
-                    for curr_line in lines:
-                        line_section = curr_line.intersection( sublime.Region(curr_line.a + ly, curr_line.a + ry) )
-                        selection.add( line_section )
+                    right_layouts = list(map( lambda y: Region( self.view.layout_to_text(y[0]), self.view.layout_to_text(( y[1][0] + dx, y[1][1] ))), 
+                                               [ (self.view.text_to_layout( x.begin() ), self.view.text_to_layout( x.end() )) for x in selection ] ))
+                    selection.add_all(right_layouts)
                 elif key == 'left':
-                    pass
+                    right_layouts = list(map( lambda y: Region( self.view.layout_to_text(( y[0][0] - dx, y[0][1] )), self.view.layout_to_text(( y[1][0], y[1][1] ))), 
+                                               [ (self.view.text_to_layout( x.begin() ), self.view.text_to_layout( x.end() )) for x in selection ] ))
+                    selection.add_all(right_layouts)
                 elif key == 'up':
-                    pass
+                     right_layouts = list(map( lambda y: Region( self.view.layout_to_text(( y[0][0], y[0][1] - dy )), self.view.layout_to_text(( y[1][0], y[1][1] - dy ))), 
+                                               [ (self.view.text_to_layout( x.begin() ), self.view.text_to_layout( x.end() )) for x in selection ] ))
+                     selection.add_all(right_layouts)
                 elif key == 'down':
-                    pass
+                     right_layouts = list(map( lambda y: Region( self.view.layout_to_text(( y[0][0], y[0][1] + dy )), self.view.layout_to_text(( y[1][0], y[1][1] + dy ))), 
+                                               [ (self.view.text_to_layout( x.begin() ), self.view.text_to_layout( x.end() )) for x in selection ] ))
+                     selection.add_all(right_layouts)
             else:
                 self.selection_mode = 'off'
                 self._move(edit,key)
