@@ -1,9 +1,43 @@
 [
-{ "keys": ["super+ctrl+l"], "command": "example", "args" :{"key" : "down"} },
+	{ "keys": ["down"], "command": "example", "args" : { "key" : "down" }, "context" : 
+		[ 
+			{ "key": "auto_complete_visible", "operator": "equal", "operand": false } 
+		]  
+	},
+	
+	{ "keys": ["up"], "command": "example", "args" : { "key" : "up" }, 
+	  "context" : 
+		[ 
+			{ "key": "auto_complete_visible", "operator": "equal", "operand": false }
+		]   
+	},
 
-{ "keys": ["down"], "command": "example", "args" : { "key" : "down" }  },
-{ "keys": ["up"], "command": "example", "args" : { "key" : "up" }  },
-{ "keys": ["right"], "command": "example", "args" : { "key" : "right" }  },
-{ "keys": ["left"], "command": "example", "args" : { "key" : "left" }  },
+	{ "keys": ["right"], "command": "example", "args" : { "key" : "right" } , "context" : 
+		[ 
+			{ "key": "auto_complete_visible", "operator": "equal", "operand": false }
+		] 
+	},
+	
+	{ "keys": ["left"], "command": "example", "args" : { "key" : "left" } , "context" : 
+		[   
+			{ "key": "auto_complete_visible", "operator": "equal", "operand": false }
+		] },
+
+	{ "keys": ["super+l"], "command": "example", "args" : { "key" : "line" } , "context" : 
+		[   
+			{ "key": "auto_complete_visible", "operator": "equal", "operand": false }
+		] },
+
+	{ "keys": ["keypad_enter"], "command": "copy" },
+
+	{ "keys": ["f19"], "command": "paste" },
+
+	{ "keys": ["super+b"], "command": "example", "args" : { "key" : "block" }  },
+	{ "keys": ["super+c"], "command": "example", "args" : { "key" : "column" } , "context" : 
+		[   
+			{ "key": "selection_empty", "operator": "equal", "operand": true }
+		] },
+
+	{ "keys": ["super+w"], "command": "expand_selection", "args": {"to": "scope"} },	
 
 ]
