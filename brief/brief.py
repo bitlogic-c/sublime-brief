@@ -5,11 +5,24 @@ import datetime
 import logging
 import sys
 import functools
+import io
 
 logger = logging.getLogger( __name__ )
 logger.setLevel( logging.INFO )
 
 logging.basicConfig( stream=sys.stdout)
+
+
+class Selection(list):
+    def __init__(self, regions ):
+        self.extend(regions)
+
+    def __str__(self):
+        buff = io.StringIO()
+        for curr in self:
+            buff.write( "({},{},{})".format(curr.begin(), curr.end(), curr.xpos) )
+        return "[{}]".format(buff.getvalue())
+
 
 
 MODE = ['column','line','block','off']
@@ -20,37 +33,43 @@ class ExampleCommand(sublime_plugin.TextCommand):
     def __init__(self, *args, **kwargs ):
         super().__init__(*args, **kwargs )
         self.selection_mode = "off"
-        self.curr_point = None
-        print( sys.version )
+        self.cursor = None
+        self.dx = self.view.em_width()
+        self.dy = self.view.line_height()
+        
 
     def _move(self, edit, key ):
-        line_move = dict( up = -1, down = 1 )
-
         selection = self.view.sel()
-        point = selection[0].a
-        x,y = self.view.rowcol(point)
-        
-        if key in line_move:  
-            point = self.view.text_point( x+line_move.get(key,0), 0 )
-        else:
-            point += dict( right = 1, left = -1 ).get( key, 0 ) 
-
-
+        self.cursor = self.view.text_to_layout( selection[0].begin() )
+        self.cursor = ( max(self.cursor[0],selection[0].xpos), self.cursor[1] )
         selection.clear()
-        line = self.view.full_line(point)
-        if key in line_move:
-            if line.contains( point + y ):
-                line.a = line.b = line.a + y
-            else:
-                line.a = line.b
-        else:
-            line.a = line.b = point
-        
-        selection.add( line )   
-        self.view.show(line, False)
-        # selection.add( sublime.Region( 0, 5) )   
+        if key == 'left':
+            pos = self.view.layout_to_text(self.cursor)
+            self.cursor = self.view.text_to_layout(pos)
+            self.cursor = ( self.cursor[0] - self.dx, self.cursor[1] )
+            pos = self.view.layout_to_text(self.cursor)
+            selection.add(Region( pos, pos, self.cursor[0] ))
+        elif key == 'right':
+            self.cursor = ( self.cursor[0] + self.dx, self.cursor[1] )
+            pos = self.view.layout_to_text(self.cursor)
+            new_layout = self.view.text_to_layout(pos)
+            self.cursor = ( new_layout[0], new_layout[1] ) 
+            selection.add(Region( pos, pos, self.cursor[0] ))
+        elif key == 'up':
+            self.cursor = ( self.cursor[0], self.cursor[1] - self.dy)
+            pos = self.view.layout_to_text(self.cursor)
+            selection.add(Region( pos, pos, self.cursor[0] ))
+        elif key == 'down':
+            self.cursor = ( self.cursor[0], self.cursor[1] + self.dy)
+            pos = self.view.layout_to_text(self.cursor)
+            selection.add(Region( pos, pos, self.cursor[0] ))
+
+        self.view.show(selection[0], False)    
+         
+
 
     def run(self, edit, key ):
+        print( Selection(list(self.view.sel())) )
         if self.view.command_history(0)[0] in [ 'copy', 'right_delete', 'delete','cut']:
             self.selection_mode = 'off'
 
@@ -58,6 +77,7 @@ class ExampleCommand(sublime_plugin.TextCommand):
         if key in MOVE_KEYS:
             if self.selection_mode == 'line':
                 selection = self.view.sel()
+                
                 line_regions = [ self.view.lines(x) for x in list( selection ) ]
                 rows = [ self.view.rowcol(x.begin())[0] for y in line_regions for x in y ]
                 min_row = min(rows)
@@ -73,6 +93,7 @@ class ExampleCommand(sublime_plugin.TextCommand):
                 selection.add(region)
             elif self.selection_mode == 'block':
                 selection = self.view.sel()
+
                 region = functools.reduce( sublime.Region.cover, list(selection) )
                 selection.clear()
                 if key == 'right':
@@ -113,16 +134,20 @@ class ExampleCommand(sublime_plugin.TextCommand):
                 bottom_right = selection[-1].end()
                 lines = self.view.lines( sublime.Region(top_left,bottom_right))
                 if key == 'right':
+                    self.cursor = ( self.cursor[0] + self.dx, self.cursor[1] )
                     right_layouts = list(map( lambda y: Region( self.view.layout_to_text(y[0]), self.view.layout_to_text(( y[1][0] + dx, y[1][1] ))), 
                                                [ (self.view.text_to_layout( x.begin() ), self.view.text_to_layout( x.end() )) for x in selection ] ))
                     selection.add_all(right_layouts)
                 elif key == 'left':
-                    right_layouts = list(map( lambda y: Region( self.view.layout_to_text(( y[0][0] - dx, y[0][1] )), self.view.layout_to_text(( y[1][0], y[1][1] ))), 
+                    self.cursor = ( self.cursor[0] - self.dx, self.cursor[1] )
+                    right_layouts = list(map( lambda y: Region( self.view.layout_to_text(( y[0][0], y[0][1] )), self.view.layout_to_text(( y[1][0] - dx, y[1][1] ))), 
                                                [ (self.view.text_to_layout( x.begin() ), self.view.text_to_layout( x.end() )) for x in selection ] ))
+                    selection.clear()
                     selection.add_all(right_layouts)
                 elif key == 'up':
-                     right_layouts = list(map( lambda y: Region( self.view.layout_to_text(( y[0][0], y[0][1] - dy )), self.view.layout_to_text(( y[1][0], y[1][1] - dy ))), 
-                                               [ (self.view.text_to_layout( x.begin() ), self.view.text_to_layout( x.end() )) for x in selection ] ))
+                     right_layouts = list(map( lambda y: Region( self.view.layout_to_text(( y[0][0], y[0][1])), self.view.layout_to_text(( y[1][0], y[1][1] ))), 
+                                               [ (self.view.text_to_layout( x.begin() ), self.view.text_to_layout( x.end() )) for x in selection ][:-1] ))
+                     selection.clear()
                      selection.add_all(right_layouts)
                 elif key == 'down':
                      right_layouts = list(map( lambda y: Region( self.view.layout_to_text(( y[0][0], y[0][1] + dy )), self.view.layout_to_text(( y[1][0], y[1][1] + dy ))), 
@@ -138,21 +163,23 @@ class ExampleCommand(sublime_plugin.TextCommand):
                 selection = self.view.sel()
                 if self.selection_mode == 'off':
                     self.selection_mode = 'line'
+                    self.cursor = self.view.text_to_layout( selection[0].begin() )
                     point = selection[0].a
                     line = self.view.full_line(point)
 
                     selection.clear()
                     selection.add( line )
-                elif self.selection_mode == 'line':
+                else:
                     self.selection_mode = 'off'
             elif key == 'block':
                 selection = self.view.sel()
                 if self.selection_mode == 'off':
                     self.selection_mode = 'block'
+                    self.cursor = self.view.text_to_layout( selection[0].begin() )
                     point = selection[0].a
                     selection.clear()
                     selection.add( sublime.Region(point,point) )
-                elif self.selection_mode == 'block':
+                else:
                     self.selection_mode = 'off'
                     point = selection[0].b
                     selection.clear()
@@ -161,10 +188,12 @@ class ExampleCommand(sublime_plugin.TextCommand):
                 selection = self.view.sel()
                 if self.selection_mode == 'off':
                     self.selection_mode = 'column'
+                    self.cursor = self.view.text_to_layout( selection[0].begin() )
                     point = selection[0].a
+                    layout = self.view.text_to_layout(point)
                     selection.clear()
-                    selection.add( sublime.Region(point,point) )
-                elif self.selection_mode == 'column':
+                    selection.add( sublime.Region(point,point,layout[0]) )
+                else:
                     self.selection_mode = 'off'
                     point = selection[0].b
                     selection.clear()
@@ -172,7 +201,8 @@ class ExampleCommand(sublime_plugin.TextCommand):
 
 
 
-        logger.info( "{} Processing..Key: {} Mode: {} Selection: {} LastCommand: {}".format(datetime.datetime.now(), key, self.selection_mode, list(self.view.sel()),self.view.command_history(0) ) )
+        logger.info( "{} Processing..Key: {} Mode: {} Selection: {} LastCommand: {}".format(datetime.datetime.now(), key, self.selection_mode, Selection(list(self.view.sel())),
+                                                                                                                                                self.view.command_history(0) ) )
             
 
 
